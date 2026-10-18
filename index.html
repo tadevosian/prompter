@@ -1,0 +1,664 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
+<meta name="theme-color" content="#000000">
+<meta name="mobile-web-app-capable" content="yes">
+<title>Суфлёр</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon-192.png" type="image/png">
+<style>
+  :root {
+    color-scheme: dark;
+    --bg: #000;
+    --card: #141416;
+    --card-2: #1f1f23;
+    --border: #2a2a30;
+    --text: #f4f4f5;
+    --muted: #9b9ba4;
+    --accent: #ffcc33;
+    --accent-ink: #1d1600;
+    --danger: #ff7a7a;
+    --read: #66666e;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; background: var(--bg); color: var(--text); font-family: Roboto, system-ui, -apple-system, "Segoe UI", Arial, sans-serif; }
+  body { min-height: 100vh; overscroll-behavior-y: none; }
+  button { font: inherit; color: inherit; cursor: pointer; border: 0; }
+  [hidden] { display: none !important; }
+
+  /* ---------- Редактор ---------- */
+  #editor { max-width: 640px; margin: 0 auto; padding: 16px 16px calc(104px + env(safe-area-inset-bottom)); }
+  .top { display: flex; align-items: baseline; justify-content: space-between; margin: 6px 2px 14px; }
+  h1 { margin: 0; font-size: 26px; font-weight: 700; letter-spacing: -.01em; }
+  h2 { margin: 0 0 12px; font-size: 13px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .08em; }
+  .card { background: var(--card); border: 1px solid var(--border); border-radius: 16px; padding: 14px; margin-bottom: 14px; }
+  .row { display: flex; gap: 8px; align-items: center; }
+  .row.between { justify-content: space-between; flex-wrap: wrap; }
+  .muted { color: var(--muted); font-size: 14px; line-height: 1.45; margin: 10px 0 0; }
+  select, textarea { width: 100%; background: var(--card-2); color: var(--text); border: 1px solid var(--border); border-radius: 12px; font: inherit; }
+  select { flex: 1; min-width: 0; height: 44px; padding: 0 12px; font-size: 16px; }
+  textarea { display: block; margin: 10px 0; min-height: 42vh; padding: 12px 14px; font-size: 17px; line-height: 1.5; resize: vertical; }
+  textarea:focus, select:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+  .btn { height: 44px; padding: 0 14px; border-radius: 12px; background: var(--card-2); border: 1px solid var(--border); font-size: 15px; white-space: nowrap; }
+  .btn:active, .round:active { background: #2e2e35; }
+  .btn.danger { color: var(--danger); }
+  .stats { color: var(--muted); font-size: 14px; }
+  .seg { display: flex; background: var(--card-2); border: 1px solid var(--border); border-radius: 12px; padding: 3px; gap: 3px; }
+  .seg button { flex: 1; height: 40px; border-radius: 9px; background: transparent; color: var(--muted); font-size: 15px; font-weight: 500; }
+  .seg button[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); font-weight: 600; }
+  .field { display: block; margin-top: 16px; }
+  .field > span { display: flex; justify-content: space-between; font-size: 15px; margin-bottom: 8px; }
+  .field b { font-weight: 600; color: var(--accent); }
+  input[type=range] { width: 100%; accent-color: var(--accent); height: 28px; margin: 0; }
+  #preview { margin-top: 10px; padding: 10px 14px; background: #000; border-radius: 12px; border: 1px solid var(--border); font-weight: 500; line-height: 1.4; overflow-wrap: break-word; }
+  #startBar { position: fixed; left: 0; right: 0; bottom: 0; padding: 12px 16px calc(12px + env(safe-area-inset-bottom)); background: linear-gradient(transparent, rgba(0,0,0,.92) 30%); }
+  .primary { background: var(--accent); color: var(--accent-ink); font-weight: 700; border-radius: 14px; }
+  .primary:active { filter: brightness(.9); }
+  #btnStart { display: block; width: 100%; max-width: 608px; margin: 0 auto; height: 56px; font-size: 19px; }
+
+  /* ---------- Суфлёр ---------- */
+  #prompter { position: fixed; inset: 0; background: #000; overflow: hidden; }
+  #stage { position: absolute; inset: 0; touch-action: none; user-select: none; -webkit-user-select: none; }
+  #scroller { position: absolute; top: 0; left: 0; right: 0; will-change: transform; }
+  #script { position: relative; max-width: 900px; margin: 0 auto; padding: 0 30px; font-weight: 500; line-height: 1.4; color: #fff; overflow-wrap: break-word; }
+  #script p { margin: 0 0 .6em; }
+  #script p:last-child { margin-bottom: 0; }
+  #script .read { color: var(--read); }
+  #fade { position: absolute; top: 0; left: 0; right: 0; pointer-events: none; background: linear-gradient(rgba(0,0,0,.94), rgba(0,0,0,.55)); }
+  #marker { position: absolute; left: 0; right: 0; height: 0; pointer-events: none; }
+  #marker::before, #marker::after { content: ""; position: absolute; top: -11px; border: 11px solid transparent; }
+  #marker::before { left: 4px; border-left: 16px solid var(--accent); border-right-width: 0; }
+  #marker::after { right: 4px; border-right: 16px solid var(--accent); border-left-width: 0; }
+  #progress { position: absolute; left: 0; bottom: 0; height: 3px; width: 0; background: var(--accent); opacity: .6; pointer-events: none; }
+  #hud { position: absolute; left: 50%; bottom: calc(14px + env(safe-area-inset-bottom)); transform: translateX(-50%); display: flex; align-items: center; gap: 4px; padding: 4px; border-radius: 999px; background: #1c1c20; border: 1px solid var(--border); opacity: .8; font-size: 15px; white-space: nowrap; }
+  #hud:active { opacity: 1; }
+  #hud button { width: 44px; height: 44px; border-radius: 50%; background: rgba(255,255,255,.08); font-size: 22px; }
+  #hudLabel { padding: 0 12px; min-width: 110px; text-align: center; line-height: 44px; }
+  #countdown { position: absolute; left: 50%; top: 55%; width: 200px; height: 200px; margin-left: -100px; display: flex; align-items: center; justify-content: center; border-radius: 50%; background: rgba(0,0,0,.85); border: 2px solid rgba(255,204,51,.35); font-size: 120px; line-height: 1; font-weight: 700; color: var(--accent); pointer-events: none; }
+  #panel { position: absolute; left: 0; right: 0; bottom: 0; max-width: 560px; margin: 0 auto; background: rgba(22,22,25,.97); border: 1px solid var(--border); border-bottom: 0; border-radius: 22px 22px 0 0; padding: 18px 16px calc(16px + env(safe-area-inset-bottom)); }
+  .panel-title { font-size: 20px; font-weight: 700; margin-bottom: 12px; }
+  .ctrl { display: flex; align-items: center; gap: 10px; margin-top: 12px; }
+  .ctrl > span { flex: 1; font-size: 16px; color: var(--muted); }
+  .ctrl b { min-width: 56px; text-align: center; font-size: 18px; }
+  .round { width: 48px; height: 48px; border-radius: 50%; background: var(--card-2); border: 1px solid var(--border); font-size: 20px; }
+  .actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; }
+  .actions > * { flex: 1 1 40%; }
+  .actions .primary { flex-basis: 100%; height: 56px; font-size: 19px; }
+  .actions .btn { height: 48px; }
+  .hint { color: var(--muted); font-size: 13px; line-height: 1.4; margin: 12px 0 0; text-align: center; }
+  #toast { position: fixed; left: 50%; top: calc(16px + env(safe-area-inset-top)); transform: translateX(-50%); width: max-content; max-width: calc(100% - 32px); background: #2a2a30; color: var(--text); padding: 12px 16px; border-radius: 12px; font-size: 15px; line-height: 1.35; z-index: 10; box-shadow: 0 6px 24px rgba(0,0,0,.5); }
+</style>
+</head>
+<body>
+
+<main id="editor">
+  <div class="top"><h1>Суфлёр</h1></div>
+
+  <section class="card">
+    <div class="row">
+      <select id="scriptSelect" aria-label="Выбор текста"></select>
+      <button id="btnNew" class="btn">＋ Новый</button>
+    </div>
+    <textarea id="text" placeholder="Вставьте сюда текст сценария…" spellcheck="false"></textarea>
+    <div class="row between">
+      <span id="stats" class="stats"></span>
+      <div class="row">
+        <button id="btnPaste" class="btn">Вставить</button>
+        <button id="btnDelete" class="btn danger">Удалить</button>
+      </div>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>Прокрутка</h2>
+    <div class="seg" data-setting="mode"><button data-v="auto">Авто</button><button data-v="voice">По голосу</button></div>
+    <p class="muted" id="modeHint"></p>
+    <label class="field"><span>Скорость <b id="wpmVal"></b></span><input type="range" id="wpm" min="60" max="250" step="5"></label>
+  </section>
+
+  <section class="card">
+    <h2>Вид</h2>
+    <label class="field" style="margin-top:0"><span>Размер текста <b id="fontVal"></b></span><input type="range" id="font" min="24" max="96" step="2"></label>
+    <div id="preview">Так будет выглядеть текст</div>
+    <label class="field"><span>Строка чтения <b id="lineVal"></b></span><input type="range" id="line" min="10" max="70" step="5"></label>
+    <p class="muted">Поставьте строку чтения поближе к камере iPhone, тогда взгляд в кадре будет почти в объектив.</p>
+    <div class="field"><span>Отсчёт перед стартом</span>
+      <div class="seg" data-setting="countdown"><button data-v="0">Нет</button><button data-v="3">3 с</button><button data-v="5">5 с</button><button data-v="10">10 с</button></div>
+    </div>
+  </section>
+</main>
+<div id="startBar"><button id="btnStart" class="primary">▶ Начать</button></div>
+
+<div id="prompter" hidden>
+  <div id="stage"><div id="scroller"><div id="script"></div></div></div>
+  <div id="fade"></div>
+  <div id="marker"></div>
+  <div id="progress"></div>
+  <div id="countdown" hidden></div>
+  <div id="hud">
+    <button id="hudSlower" aria-label="Медленнее">−</button>
+    <span id="hudLabel"></span>
+    <button id="hudFaster" aria-label="Быстрее">+</button>
+  </div>
+  <div id="panel" hidden>
+    <div class="panel-title" id="panelTitle">Пауза</div>
+    <div class="seg" data-setting="mode"><button data-v="auto">Авто</button><button data-v="voice">По голосу</button></div>
+    <div class="ctrl" id="panelSpeedRow"><span>Скорость</span><button class="round" data-act="slower">−</button><b id="panelSpeed"></b><button class="round" data-act="faster">+</button></div>
+    <div class="ctrl"><span>Шрифт</span><button class="round" data-act="smaller">A−</button><b id="panelFont"></b><button class="round" data-act="bigger">A+</button></div>
+    <div class="actions">
+      <button class="primary" data-act="resume" id="btnResume">▶ Продолжить</button>
+      <button class="btn" data-act="restart" id="btnRestart">⏮ С начала</button>
+      <button class="btn" data-act="exit">✕ К тексту</button>
+    </div>
+    <p class="hint">Касание экрана: пауза или продолжить.<br>Проведите пальцем по тексту, чтобы перемотать.</p>
+  </div>
+</div>
+
+<div id="toast" hidden></div>
+
+<script>
+'use strict';
+const $ = id => document.getElementById(id);
+const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+
+const store = {
+  get(key, fallback) { try { const v = localStorage.getItem(key); return v == null ? fallback : JSON.parse(v); } catch { return fallback; } },
+  set(key, value) { try { localStorage.setItem(key, JSON.stringify(value)); } catch {} },
+};
+
+const SAMPLE = `Привет! Это пример текста для суфлёра.
+
+Вставьте сюда свой сценарий, нажмите «Начать», и текст поплывёт вверх. Читайте строку напротив жёлтых стрелок.
+
+Коснитесь экрана, чтобы поставить паузу. Проведите пальцем вверх или вниз, чтобы перемотать.
+
+В режиме «По голосу» текст двигается, пока вы говорите, и ждёт, когда вы замолкаете.`;
+const HINT_AUTO = 'Текст едет с постоянной скоростью. Скорость можно менять кнопками − и + прямо во время чтения.';
+const HINT_VOICE = 'Текст двигается, пока вы читаете вслух, и ждёт, когда вы молчите. Нужны интернет и доступ к микрофону.';
+
+const DEFAULTS = { mode: 'auto', wpm: 130, font: 40, line: 25, countdown: 3 };
+const settings = Object.assign({}, DEFAULTS, store.get('prompter.settings', {}));
+const saveSettings = () => store.set('prompter.settings', settings);
+
+let scripts = store.get('prompter.scripts', null);
+if (!Array.isArray(scripts) || !scripts.length) scripts = [{ id: uid(), text: SAMPLE, updated: Date.now() }];
+let currentId = store.get('prompter.current', scripts[0].id);
+if (!scripts.some(s => s.id === currentId)) currentId = scripts[0].id;
+const current = () => scripts.find(s => s.id === currentId);
+const saveScripts = () => { store.set('prompter.scripts', scripts); store.set('prompter.current', currentId); };
+
+const norm = s => s.toLowerCase().replace(/ё/g, 'е').replace(/[^\p{L}\p{N}]+/gu, '');
+const countWords = text => text.split(/\s+/).filter(t => norm(t)).length;
+const fmtTime = sec => { sec = Math.round(sec); return Math.floor(sec / 60) + ':' + String(sec % 60).padStart(2, '0'); };
+function plural(n, one, few, many) {
+  const m10 = n % 10, m100 = n % 100;
+  if (m10 === 1 && m100 !== 11) return one;
+  if (m10 >= 2 && m10 <= 4 && (m100 < 12 || m100 > 14)) return few;
+  return many;
+}
+
+let toastTimer;
+function toast(msg, ms = 3500) {
+  const t = $('toast');
+  t.textContent = msg; t.hidden = false;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { t.hidden = true; }, ms);
+}
+
+/* ---------- Редактор ---------- */
+const textEl = $('text'), selectEl = $('scriptSelect');
+
+function labelOf(s) {
+  const first = s.text.trim().split('\n')[0].trim();
+  if (!first) return 'Новый текст';
+  return first.length > 34 ? first.slice(0, 33) + '…' : first;
+}
+function renderSelect() {
+  selectEl.textContent = '';
+  for (const s of scripts) {
+    const o = document.createElement('option');
+    o.value = s.id; o.textContent = labelOf(s); o.selected = s.id === currentId;
+    selectEl.appendChild(o);
+  }
+}
+function renderStats() {
+  const n = countWords(textEl.value);
+  $('stats').textContent = n
+    ? `${n} ${plural(n, 'слово', 'слова', 'слов')} · ≈ ${fmtTime(n / settings.wpm * 60)}`
+    : 'Пока пусто';
+}
+function loadCurrent() { textEl.value = current().text; renderSelect(); renderStats(); }
+function addScript(text) {
+  const s = { id: uid(), text, updated: Date.now() };
+  scripts.unshift(s); currentId = s.id; saveScripts(); loadCurrent();
+}
+
+let saveTimer;
+textEl.addEventListener('input', () => {
+  const s = current();
+  s.text = textEl.value; s.updated = Date.now();
+  renderStats();
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(() => {
+    saveScripts();
+    const o = selectEl.selectedOptions[0];
+    if (o) o.textContent = labelOf(s);
+  }, 400);
+});
+selectEl.addEventListener('change', () => { currentId = selectEl.value; saveScripts(); loadCurrent(); });
+$('btnNew').addEventListener('click', () => { addScript(''); textEl.focus(); });
+$('btnDelete').addEventListener('click', () => {
+  if (!confirm('Удалить этот текст?')) return;
+  if (scripts.length === 1) scripts[0].text = '';
+  else { scripts = scripts.filter(s => s.id !== currentId); currentId = scripts[0].id; }
+  saveScripts(); loadCurrent();
+});
+$('btnPaste').addEventListener('click', async () => {
+  let clip = '';
+  try { clip = await navigator.clipboard.readText(); }
+  catch { toast('Не получилось. Нажмите на поле с текстом и удерживайте, затем «Вставить».'); return; }
+  if (!clip.trim()) { toast('В буфере обмена нет текста'); return; }
+  if (current().text.trim()) { addScript(clip); toast('Добавлен новый текст'); }
+  else { textEl.value = clip; textEl.dispatchEvent(new Event('input')); }
+});
+
+/* ---------- Настройки ---------- */
+function syncUI() {
+  document.querySelectorAll('[data-setting]').forEach(seg => {
+    const key = seg.dataset.setting;
+    seg.querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.v === String(settings[key]))));
+  });
+  $('wpm').value = settings.wpm; $('wpmVal').textContent = settings.wpm + ' слов/мин';
+  $('font').value = settings.font; $('fontVal').textContent = settings.font + ' px';
+  $('line').value = settings.line; $('lineVal').textContent = settings.line + '% от верха';
+  $('preview').style.fontSize = settings.font + 'px';
+  $('modeHint').textContent = settings.mode === 'voice' ? HINT_VOICE : HINT_AUTO;
+  $('panelSpeed').textContent = settings.wpm;
+  $('panelFont').textContent = settings.font;
+  const auto = settings.mode === 'auto';
+  $('panelSpeedRow').hidden = !auto;
+  $('hudSlower').hidden = $('hudFaster').hidden = !auto;
+  if (auto) $('hudLabel').textContent = settings.wpm + ' слов/мин';
+  renderStats();
+}
+document.querySelectorAll('[data-setting]').forEach(seg => seg.addEventListener('click', e => {
+  const b = e.target.closest('button');
+  if (!b) return;
+  const key = seg.dataset.setting;
+  if (key === 'mode') setMode(b.dataset.v);
+  else { settings[key] = +b.dataset.v; saveSettings(); syncUI(); }
+}));
+for (const id of ['wpm', 'font', 'line']) {
+  $(id).addEventListener('input', e => { settings[id] = +e.target.value; saveSettings(); syncUI(); });
+}
+
+function setMode(m) {
+  if (m === 'voice' && !SR) { toast('Режим «По голосу» работает только в Google Chrome'); m = 'auto'; }
+  const changed = settings.mode !== m;
+  settings.mode = m; saveSettings();
+  if (changed && inPrompter) {
+    if (m === 'voice') { resyncFromY(); setMic(null); if (running) startListening(); }
+    else { stopListening(); clearRead(); }
+  }
+  syncUI();
+}
+function changeSpeed(d) { settings.wpm = clamp(settings.wpm + d, 60, 250); saveSettings(); syncUI(); }
+function changeFont(d) { settings.font = clamp(settings.font + d, 24, 96); saveSettings(); syncUI(); layout(); }
+
+/* ---------- Суфлёр ---------- */
+const prompterEl = $('prompter'), stage = $('stage'), scroller = $('scroller'), scriptEl = $('script'), progressEl = $('progress');
+let inPrompter = false, running = false, counting = false, finished = false;
+let words = [];            // [{ el, n }] — слова сценария и их нормализованная форма
+let y = 0, targetY = 0;    // сколько пикселей текста уже уехало выше строки чтения
+let pos = -1;              // последнее прочитанное слово (режим «По голосу»)
+let textH = 0, LH = 0, readingY = 0;
+let rafId = 0, lastT = 0, cdTimer = 0, finishTimer = 0;
+
+function buildScript(text) {
+  scriptEl.textContent = '';
+  words = [];
+  for (const block of text.replace(/\r/g, '').trim().split(/\n[ \t]*\n+/)) {
+    const p = document.createElement('p');
+    for (const part of block.trim().split(/(\s+)/)) {
+      if (!part) continue;
+      if (/^\s+$/.test(part)) {
+        p.appendChild(part.includes('\n') ? document.createElement('br') : document.createTextNode(' '));
+        continue;
+      }
+      const span = document.createElement('span');
+      span.textContent = part;
+      const n = norm(part);
+      if (n) words.push({ el: span, n });
+      p.appendChild(span);
+    }
+    scriptEl.appendChild(p);
+  }
+}
+
+function lineTopOf(i) { const el = words[i].el; return el.offsetTop + el.offsetHeight / 2 - LH / 2; }
+function targetFor(p) {
+  if (!words.length) return 0;
+  if (p >= words.length - 1) return textH;
+  return Math.max(0, lineTopOf(p + 1));
+}
+
+function layout() {
+  if (!inPrompter) return;
+  const frac = textH ? y / textH : 0;
+  scriptEl.style.fontSize = settings.font + 'px';
+  LH = settings.font * 1.4;
+  textH = scriptEl.offsetHeight;
+  readingY = Math.round(prompterEl.clientHeight * settings.line / 100);
+  $('fade').style.height = readingY + 'px';
+  $('marker').style.top = (readingY + LH / 2) + 'px';
+  if (settings.mode === 'voice') y = targetY = targetFor(pos);
+  else y = targetY = frac * textH;
+  render();
+}
+new ResizeObserver(() => layout()).observe(prompterEl);
+
+function render() {
+  scroller.style.transform = `translate3d(0, ${(readingY - y).toFixed(2)}px, 0)`;
+  progressEl.style.width = (textH ? clamp(y / textH, 0, 1) * 100 : 0) + '%';
+}
+
+function frame(t) {
+  const dt = lastT ? Math.min(0.1, (t - lastT) / 1000) : 0;
+  lastT = t;
+  if (running && !(drag && drag.moved)) {
+    if (settings.mode === 'auto') {
+      // скорость в словах в минуту → пиксели в секунду (в среднем по тексту)
+      y += textH / Math.max(1, words.length) * settings.wpm / 60 * dt;
+      if (y >= textH) { y = textH; finish(); }
+    } else {
+      y += (targetY - y) * (1 - Math.exp(-dt * 6));
+    }
+  }
+  render();
+  rafId = requestAnimationFrame(frame);
+}
+
+function startCountdown() {
+  finished = false;
+  $('panel').hidden = true;
+  $('hud').hidden = false;
+  let n = settings.countdown;
+  if (!n) { run(); return; }
+  counting = true;
+  const cd = $('countdown');
+  cd.textContent = n; cd.hidden = false;
+  clearInterval(cdTimer);
+  cdTimer = setInterval(() => {
+    n -= 1;
+    if (n > 0) cd.textContent = n;
+    else { stopCountdown(); run(); }
+  }, 1000);
+}
+function stopCountdown() { counting = false; clearInterval(cdTimer); $('countdown').hidden = true; }
+function run() {
+  running = true; finished = false;
+  if (settings.mode === 'voice') startListening();
+}
+function pause() {
+  stopCountdown();
+  running = false;
+  clearTimeout(finishTimer);
+  stopListening();
+  showPanel();
+}
+function finish() {
+  running = false; finished = true;
+  stopListening();
+  showPanel();
+}
+function showPanel() {
+  $('panelTitle').textContent = finished ? 'Готово 🎬' : 'Пауза';
+  $('btnResume').hidden = finished;
+  $('btnRestart').className = finished ? 'primary' : 'btn';
+  $('hud').hidden = true;
+  $('panel').hidden = false;
+}
+function onTap() {
+  if (counting || running) pause();
+  else if (!finished) startCountdown();
+}
+function restart() {
+  y = targetY = 0; pos = -1;
+  clearRead();
+  startCountdown();
+}
+
+$('panel').addEventListener('click', e => {
+  const b = e.target.closest('[data-act]');
+  if (!b) return;
+  switch (b.dataset.act) {
+    case 'resume': startCountdown(); break;
+    case 'restart': restart(); break;
+    case 'exit': exitPrompter(); break;
+    case 'slower': changeSpeed(-10); break;
+    case 'faster': changeSpeed(10); break;
+    case 'smaller': changeFont(-4); break;
+    case 'bigger': changeFont(4); break;
+  }
+});
+$('hudSlower').addEventListener('click', () => changeSpeed(-10));
+$('hudFaster').addEventListener('click', () => changeSpeed(10));
+
+// Касание — пауза, движение пальцем — перемотка
+let drag = null;
+stage.addEventListener('pointerdown', e => {
+  drag = { id: e.pointerId, startY: e.clientY, lastY: e.clientY, moved: false };
+  try { stage.setPointerCapture(e.pointerId); } catch {}
+});
+stage.addEventListener('pointermove', e => {
+  if (!drag || e.pointerId !== drag.id) return;
+  if (!drag.moved && Math.abs(e.clientY - drag.startY) > 10) drag.moved = true;
+  if (drag.moved) { y = clamp(y - (e.clientY - drag.lastY), 0, textH); targetY = y; }
+  drag.lastY = e.clientY;
+});
+function endDrag(e) {
+  if (!drag || e.pointerId !== drag.id) return;
+  const d = drag;
+  drag = null;
+  if (!d.moved) { if (e.type === 'pointerup') onTap(); return; }
+  if (settings.mode === 'voice') resyncFromY();
+  if (finished && y < textH) { finished = false; showPanel(); }
+}
+stage.addEventListener('pointerup', endDrag);
+stage.addEventListener('pointercancel', endDrag);
+
+function nudge(lines) {
+  y = targetY = clamp(y + lines * LH, 0, textH);
+  if (settings.mode === 'voice') resyncFromY();
+}
+
+// Bluetooth-пульт или клавиатура
+document.addEventListener('keydown', e => {
+  if (!inPrompter) return;
+  const actions = {
+    ' ': onTap, Enter: onTap, MediaPlayPause: onTap,
+    ArrowUp: () => changeSpeed(10), ArrowDown: () => changeSpeed(-10),
+    ArrowLeft: () => nudge(-2), PageUp: () => nudge(-2),
+    ArrowRight: () => nudge(2), PageDown: () => nudge(2),
+    Escape: () => exitPrompter(),
+  };
+  if (actions[e.key]) { e.preventDefault(); actions[e.key](); }
+});
+
+function enterPrompter() {
+  if (!countWords(current().text)) { toast('Сначала добавьте текст'); return; }
+  clearTimeout(saveTimer); saveScripts();
+  buildScript(current().text);
+  inPrompter = true; running = false; finished = false;
+  y = targetY = 0; pos = -1; textH = 0;
+  $('editor').hidden = true; $('startBar').hidden = true; prompterEl.hidden = false;
+  document.body.style.overflow = 'hidden';
+  history.pushState({ prompter: true }, '');
+  if (document.documentElement.requestFullscreen && !document.fullscreenElement) {
+    document.documentElement.requestFullscreen({ navigationUI: 'hide' }).catch(() => {});
+  }
+  acquireWakeLock();
+  syncUI(); setMic(null);
+  layout();
+  lastT = 0; cancelAnimationFrame(rafId); rafId = requestAnimationFrame(frame);
+  startCountdown();
+}
+function exitPrompter(fromHistory) {
+  if (!inPrompter) return;
+  inPrompter = false; running = false; finished = false;
+  stopCountdown(); stopListening(); clearTimeout(finishTimer); cancelAnimationFrame(rafId);
+  prompterEl.hidden = true; $('panel').hidden = true;
+  $('editor').hidden = false; $('startBar').hidden = false;
+  document.body.style.overflow = '';
+  releaseWakeLock();
+  if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
+  if (!fromHistory && history.state && history.state.prompter) history.back();
+}
+$('btnStart').addEventListener('click', enterPrompter);
+window.addEventListener('popstate', () => exitPrompter(true));
+
+// Экран не гаснет, пока открыт суфлёр
+let wakeLock = null;
+async function acquireWakeLock() {
+  if (!('wakeLock' in navigator) || wakeLock) return;
+  try {
+    wakeLock = await navigator.wakeLock.request('screen');
+    wakeLock.addEventListener('release', () => { wakeLock = null; });
+  } catch {}
+}
+function releaseWakeLock() { try { wakeLock && wakeLock.release(); } catch {} wakeLock = null; }
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) { if (running || counting) pause(); }
+  else if (inPrompter) acquireWakeLock();
+});
+
+/* ---------- Режим «По голосу» ---------- */
+const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+let rec = null, listening = false, restartTimer = 0, srErrors = 0;
+
+function setMic(text) { if (settings.mode === 'voice') $('hudLabel').textContent = text || '🎙 По голосу'; }
+
+function startListening() {
+  if (!SR) { setMode('auto'); return; }
+  listening = true;
+  if (!rec) {
+    rec = new SR();
+    rec.lang = 'ru-RU';
+    rec.continuous = true;
+    rec.interimResults = true;
+    rec.maxAlternatives = 1;
+    rec.onstart = () => setMic('🎙 Слушаю…');
+    rec.onresult = onSpeech;
+    rec.onerror = e => {
+      if (e.error === 'no-speech' || e.error === 'aborted') return;
+      srErrors++;
+      if (e.error === 'not-allowed' || e.error === 'service-not-allowed') {
+        listening = false;
+        if (running) pause();
+        toast('Нет доступа к микрофону. Разрешите его в настройках сайта: значок слева от адреса.', 6000);
+      } else if (e.error === 'network') setMic('⚠ Нужен интернет');
+      else if (e.error === 'audio-capture') setMic('⚠ Микрофон занят');
+    };
+    // Android завершает распознавание после паузы в речи — перезапускаем
+    rec.onend = () => {
+      if (!listening) { setMic(null); return; }
+      clearTimeout(restartTimer);
+      restartTimer = setTimeout(() => { if (listening) try { rec.start(); } catch {} }, Math.min(4000, 150 * 2 ** Math.min(srErrors, 5)));
+    };
+  }
+  try { rec.start(); } catch {}
+}
+function stopListening() {
+  listening = false;
+  clearTimeout(restartTimer);
+  if (rec) try { rec.abort(); } catch {}
+}
+
+function onSpeech(e) {
+  srErrors = 0;
+  let txt = '';
+  for (let i = Math.max(0, e.results.length - 3); i < e.results.length; i++) txt += ' ' + e.results[i][0].transcript;
+  const heard = txt.split(/\s+/).map(norm).filter(Boolean).slice(-6);
+  if (heard.length && running) follow(heard);
+}
+
+// Слова считаются похожими, если совпадают или отличаются только окончанием
+function similar(a, b) {
+  if (a === b) return true;
+  const m = Math.min(a.length, b.length);
+  if (m < 4) return false;
+  let p = 0;
+  while (p < m && a[p] === b[p]) p++;
+  return p >= Math.max(4, m - 2);
+}
+const weight = w => (w.length <= 2 ? 0.35 : w.length === 3 ? 0.7 : 1);
+function matchScore(a, b) { // взвешенная наибольшая общая подпоследовательность
+  let prev = new Array(b.length + 1).fill(0), cur = new Array(b.length + 1).fill(0);
+  for (let i = 1; i <= a.length; i++) {
+    for (let j = 1; j <= b.length; j++) {
+      cur[j] = similar(a[i - 1], b[j - 1]) ? prev[j - 1] + weight(b[j - 1]) : Math.max(prev[j], cur[j - 1]);
+    }
+    [prev, cur] = [cur, prev];
+  }
+  return prev[b.length];
+}
+
+// Ищем в тексте место, где закончилась услышанная фраза, и двигаемся только вперёд
+function follow(heard) {
+  const last2 = heard.slice(-2);
+  const from = Math.max(0, pos - 3), to = Math.min(words.length - 1, pos + 40);
+  let best = -1, bestScore = 0, bestDist = Infinity;
+  for (let j = from; j <= to; j++) {
+    if (!last2.some(h => similar(h, words[j].n))) continue;
+    const seg = [];
+    for (let k = Math.max(0, j - 8); k <= j; k++) seg.push(words[k].n);
+    const s = matchScore(heard, seg);
+    const dist = Math.abs(j - (pos + 1));
+    if (s > bestScore + 1e-6 || (Math.abs(s - bestScore) < 1e-6 && dist < bestDist)) { best = j; bestScore = s; bestDist = dist; }
+  }
+  if (best <= pos) return;
+  const jump = best - pos;
+  const need = jump <= 3 ? 0.9 : jump <= 12 ? 1.7 : 2.6;
+  if (bestScore >= need) setPos(best);
+}
+
+function setPos(p) {
+  for (let i = Math.max(0, pos + 1); i <= p; i++) words[i].el.classList.add('read');
+  pos = p;
+  targetY = targetFor(p);
+  if (p >= words.length - 1) {
+    clearTimeout(finishTimer);
+    finishTimer = setTimeout(() => { if (running) finish(); }, 1500);
+  }
+}
+function clearRead() { scriptEl.querySelectorAll('.read').forEach(el => el.classList.remove('read')); }
+function resyncFromY() {
+  let p = -1;
+  for (let i = 0; i < words.length && lineTopOf(i) <= y - LH / 2; i++) p = i;
+  clearRead();
+  pos = -1;
+  if (p >= 0) setPos(p);
+  targetY = y;
+}
+
+/* ---------- Запуск ---------- */
+(function init() {
+  // Текст, присланный через «Поделиться» из другого приложения
+  const q = new URLSearchParams(location.search);
+  if (q.has('text') || q.has('title')) {
+    const shared = (q.get('text') || q.get('title') || '').trim();
+    history.replaceState(null, '', location.pathname);
+    if (shared) { addScript(shared); toast('Текст добавлен'); }
+  }
+  loadCurrent();
+  syncUI();
+  if ('serviceWorker' in navigator && location.protocol === 'https:') {
+    navigator.serviceWorker.register('sw.js').catch(() => {});
+  }
+})();
+</script>
+</body>
+</html>
